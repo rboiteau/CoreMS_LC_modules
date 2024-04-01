@@ -38,28 +38,27 @@ def assign_formula(timestart,interval,parser,refmasslist,data_dir,file):
 	os.chdir(data_dir)
 	
 	# peak picking and assignment
-	MSParameters.mass_spectrum.min_picking_mz=100
-	MSParameters.mass_spectrum.max_picking_mz=1000
-	MSParameters.mass_spectrum.noise_threshold_log_nsigma = 100
-	MSParameters.mass_spectrum.noise_threshold_log_nsigma_bins = 500 
-	MSParameters.ms_peak.peak_min_prominence_percent = 0.01
+	MSParameters.mass_spectrum.min_picking_mz=100	# integer, minimum m/z that will be assigned
+	MSParameters.mass_spectrum.max_picking_mz=1000 # integer, maximum m/z that will be assigned
+	MSParameters.mass_spectrum.noise_threshold_log_nsigma = 100 # integer, should be ~7-10 for most cases (lower will keep more noise)
+	MSParameters.mass_spectrum.noise_threshold_log_nsigma_bins = 500 # integer, should be kept around 500
+	MSParameters.ms_peak.peak_min_prominence_percent = 0.01 # relative intensity of lowest vs highest peak in spectrum. Keep around 0.01 to 0.1 . 
 
 	# assigment & database
 	MSParameters.molecular_search.url_database = 'postgresql+psycopg2://coremsappdb:coremsapppnnl@corems-molformdb-1:5432/coremsapp'
 	MSParameters.molecular_search.db_chunk_size = 500
 	MSParameters.molecular_search.error_method = None
-	MSParameters.molecular_search.min_ppm_error = -1
-	MSParameters.molecular_search.max_ppm_error = 1
+	MSParameters.molecular_search.min_ppm_error = -3 # acceptable post-calibration minimum mass error for assigments (orbitraps, window should be 1-2ppm)
+	MSParameters.molecular_search.max_ppm_error = 3 # acceptable post-calibration maximum mass error for assigments (orbitraps, window should be 1-2ppm)
 	MSParameters.molecular_search.score_method = 'prob_score'
 	MSParameters.molecular_search.output_score_method = 'prob_score'
 	MSParameters.molecular_search.mz_error_score_weight: float = 0.6
 	MSParameters.molecular_search.isotopologue_score_weight: float = 0.4
 	MSParameters.ms_peak.legacy_resolving_power = False
-	MSParameters.ms_peak.legacy_resolving_power = False
 
 	# calibration
-	MSParameters.mass_spectrum.min_calib_ppm_error = -2
-	MSParameters.mass_spectrum.max_calib_ppm_error = 2
+	MSParameters.mass_spectrum.min_calib_ppm_error = -2 # minimum ppm error for detecting m/z calibrant peaks
+	MSParameters.mass_spectrum.max_calib_ppm_error = 2 # maximum ppm error for detecting m/z calibrant peaks
 	MSParameters.mass_spectrum.calib_pol_order = 2
 	MSParameters.mass_spectrum.calib_sn_threshold = 3
 
@@ -74,14 +73,12 @@ def assign_formula(timestart,interval,parser,refmasslist,data_dir,file):
 
 	mass_spectrum = parser.get_average_mass_spectrum_by_scanlist(scans)
 
-	MzDomainCalibration(mass_spectrum, refmasslist).run()
+	MzDomainCalibration(mass_spectrum, refmasslist).run() # This function performs m/z calibration
 
 	#Assigment criteria
-	mass_spectrum.molecular_search_settings.min_dbe = 0
-	mass_spectrum.molecular_search_settings.max_dbe = 16
-	
-	mass_spectrum.molecular_search_settings.usedAtoms['C'] = (10, 45)
-	mass_spectrum.molecular_search_settings.usedAtoms['H'] = (10, 80)
+
+	mass_spectrum.molecular_search_settings.usedAtoms['C'] = (1, 45) #Set elemental criteria as tuple of integers (min,max)
+	mass_spectrum.molecular_search_settings.usedAtoms['H'] = (4, 80)
 	mass_spectrum.molecular_search_settings.usedAtoms['O'] = (2, 16)
 	mass_spectrum.molecular_search_settings.usedAtoms['N'] = (0, 8)
 	mass_spectrum.molecular_search_settings.usedAtoms['S'] = (0, 0)
@@ -90,23 +87,36 @@ def assign_formula(timestart,interval,parser,refmasslist,data_dir,file):
 	mass_spectrum.molecular_search_settings.usedAtoms['Fe'] = (0, 0)
 	mass_spectrum.molecular_search_settings.usedAtoms['Cu'] = (0, 0)
 
-	mass_spectrum.molecular_search_settings.isProtonated = True
-	mass_spectrum.molecular_search_settings.isRadical = False
-	mass_spectrum.molecular_search_settings.isAdduct = False
-	mass_spectrum.molecular_search_settings.max_oc_filter=1.2
-	mass_spectrum.molecular_search_settings.max_hc_filter=3
+	mass_spectrum.molecular_search_settings.isProtonated = True # If True, will assign protonated or deprotonated ions (most common)
+	mass_spectrum.molecular_search_settings.isRadical = False	# If True, will assign radicals
+	mass_spectrum.molecular_search_settings.isAdduct = False	# If True, will assign adducts
+	mass_spectrum.molecular_search_settings.adduct_atoms_pos = ('Na', ) # Tuple of atoms to consider for adducts
+	mass_spectrum.molecular_search_settings.max_oc_filter=1.2 # Maximum acceptable O/C ratio
+	mass_spectrum.molecular_search_settings.max_hc_filter=3 # Maximum acceptable H/C ratio
+	mass_spectrum.molecular_search_settings.min_dbe = 0 # Maximum acceptable double bond equivalent (DBE)
+	mass_spectrum.molecular_search_settings.max_dbe = 16 # Minimum acceptable double bond equivalent 
+
 	mass_spectrum.molecular_search_settings.used_atom_valences = {'C': 4,
 																	'13C': 4,
 																	'H': 1,
+																	'D': 1,
 																	'O': 2,
+																	'17O': 2,
+																	'18O':2,
 																	'N': 3,
+																	'15N': 3,
 																	'Na': 1,
 																	'P': 3,
 																	'S': 2,
+																	'34S': 2,
 																	'Fe': 3,
-																	'Cu': 2}
+																	'54Fe': 3,
+																	'57Fe': 3,
+																	'Cu': 2,
+																	'65Cu': 2}
 
-	SearchMolecularFormulas(mass_spectrum, first_hit=False, ion_charge=1).run_worker_mass_spectrum()
+	SearchMolecularFormulas(mass_spectrum, first_hit=False, ion_charge=1).run_worker_mass_spectrum() #Assign molecular formula to all molecules w/ ion charge = 1)
+	#SearchMolecularFormulas(mass_spectrum, first_hit=False, ion_charge=2).run_worker_mass_spectrum() #Assign molecular formula to all molecules w/ ion charge = 2)
 	mass_spectrum.percentile_assigned(report_error=True)
 	assignments=mass_spectrum.to_dataframe()
 	assignments['Time']=timestart
@@ -128,16 +138,14 @@ def assign_formula(timestart,interval,parser,refmasslist,data_dir,file):
 		chroma=pd.DataFrame({'EIC':EIC[0][mass].eic,'time':EIC[0][mass].time})
 		chroma=chroma[chroma['time'].between(time[0],time[1])]
 		chroma=chroma.sort_values(by='EIC',ascending=False)
-		d=chroma[chroma.cumsum()['EIC']<0.5*chroma.sum()['EIC']].time.std()
-		if(d>0.001):
-			dispersity.append(d)
-		else:
-			print(d)
-			print(chroma)
-			print(current)
-			dispersity.append(d)
+		chroma['cumulative']=chroma.cumsum()['EIC']/chroma.sum()['EIC']
+		chroma_sub=chroma.head(len(chroma[chroma['cumulative']<0.5])+1)
+		d=chroma_sub.time.std()
+
+		dispersity.append(d)
 
 	assignments['Dispersity']=dispersity
+
 
 	return(assignments)
 
@@ -200,14 +208,16 @@ if __name__ == '__main__':
 
 	refmasslist = "PWB_071323_OC_S436_19_calibrants_pos.ref"
 
-	interval = 2
-	time_min = 6
-	time_max = 12
+	interval = 2 # Time interval for ms spectrum averaging (in minutes)
+	time_min = 2 # Minimum retention time for formula assigments (minutes)
+	time_max = 20 # Maximum retention time for formula assigments (minutes)
+
+
 	times = list(range(time_min,time_max,interval))
 
 	all_files = os.listdir(data_dir)
 	flist = [f for f in all_files if '.raw' in f]
-	
+
 	os.chdir(data_dir)
 
 	for file in flist:
