@@ -125,6 +125,9 @@ def assign_formula(timestart,interval,parser,refmasslist,data_dir,file):
 	assignments['Molecular Class'][assignments['Heteroatom Class']=='unassigned']='unassigned'
 	assignments['Molecular Class'][assignments['Is Isotopologue']==1]='Isotope'
 
+	return(assignments)
+
+def dispersity_calc(assignments,parser):
 	#Calculate Dispersity Index. 
 	masses=assignments['m/z'].unique().tolist()
 	EIC=parser.get_eics(target_mzs=masses,tic_data={},peak_detection=False,smooth=False)
@@ -133,21 +136,22 @@ def assign_formula(timestart,interval,parser,refmasslist,data_dir,file):
 	for ind in assignments.index:
 		current=assignments.loc[ind]
 		time=[0,2]+current.Time
-		file=current.File
 		mass=current['m/z']
 		chroma=pd.DataFrame({'EIC':EIC[0][mass].eic,'time':EIC[0][mass].time})
 		chroma=chroma[chroma['time'].between(time[0],time[1])]
 		chroma=chroma.sort_values(by='EIC',ascending=False)
 		chroma['cumulative']=chroma.cumsum()['EIC']/chroma.sum()['EIC']
-		chroma_sub=chroma.head(len(chroma[chroma['cumulative']<0.5])+1)
+		npoints=len(chroma[chroma['cumulative']<0.5])+1
+		if npoints<3:
+			npoints=3
+		chroma_sub=chroma.head(npoints)
 		d=chroma_sub.time.std()
-
 		dispersity.append(d)
 
 	assignments['Dispersity']=dispersity
 
-
 	return(assignments)
+
 
 def errorplot(LCMS_annotations,filename):
  
@@ -192,6 +196,9 @@ def run_assignment(time_min,time_max,interval,data_dir,file,refmasslist):
 		assignments.append(assigment)
 	results=pd.concat(assignments,ignore_index=True)
 	
+	print('Dispersity')
+	results=dispersity_calc(results,parser)
+
 	fname = file.replace('.raw','')
 
 	results.to_csv(data_dir+fname+'.csv')
