@@ -74,6 +74,8 @@ def std_qc(samplelist,stdmass,std_timerange,filename):
     for file in samplelist['File'].unique():
         try:
             parser = rawFileReader.ImportMassSpectraThermoMSFileReader(data_dir+file)
+            parser.chromatogram_settings.eic_tolerance_ppm=5 #Can change this if mass accuracy is off.
+
             EIC=parser.get_eics(target_mzs=[stdmass],tic_data={},peak_detection=False,smooth=False)
             
             df=pd.DataFrame({'EIC':EIC[0][stdmass].eic,'time':EIC[0][stdmass].time})
