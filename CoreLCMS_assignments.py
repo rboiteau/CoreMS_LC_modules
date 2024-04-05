@@ -133,6 +133,8 @@ def dispersity_calc(assignments,parser):
 	EIC=parser.get_eics(target_mzs=masses,tic_data={},peak_detection=False,smooth=False)
 
 	dispersity=[]
+	retention_time=[]
+
 	for ind in assignments.index:
 		current=assignments.loc[ind]
 		time=[0,2]+current.Time
@@ -146,9 +148,12 @@ def dispersity_calc(assignments,parser):
 			npoints=3
 		chroma_sub=chroma.head(npoints)
 		d=chroma_sub.time.std()
-		dispersity.append(d)
+		t=np.average(chroma_sub.time,weights=chroma_sub['EIC'])
 
+		dispersity.append(d)
+		retention_time.append(t)
 	assignments['Dispersity']=dispersity
+	assignments['Retention Time']=retention_time
 
 	return(assignments)
 
