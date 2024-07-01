@@ -67,23 +67,36 @@ def std_qc(samplelist,stdmass,std_timerange,filename):
 
     area={}
     rt={}
-
+    ppmerror={}
     fig, axs = plt.subplot_mosaic([['a','b']], figsize=(11,5), constrained_layout=True)
     axs['a'].set(xlabel='Time (min)',ylabel='Intensity',title='Internal Standard EIC = '+str(stdmass) + ' m/z')
+
 
     for file in samplelist['File'].unique():
         try:
             parser = rawFileReader.ImportMassSpectraThermoMSFileReader(data_dir+file)
-            parser.chromatogram_settings.eic_tolerance_ppm=5 #Can change this if mass accuracy is off.
+            parser.chromatogram_settings.eic_tolerance_ppm=15
 
             EIC=parser.get_eics(target_mzs=[stdmass],tic_data={},peak_detection=False,smooth=False)
             
             df=pd.DataFrame({'EIC':EIC[0][stdmass].eic,'time':EIC[0][stdmass].time})
             df_sub=df[df['time'].between(std_timerange[0],std_timerange[1])]
             area[file]=(sum(df_sub['EIC']))
-            rt[file]=(df_sub.time[df_sub.EIC==df_sub.EIC.max()].max())
+            t=(df_sub.time[df_sub.EIC==df_sub.EIC.max()].max())
+            rt[file]=t
             axs['a'].plot(df_sub['time'],df_sub['EIC']/1e7,label=file[11:])
             print(file)
+
+            interval=0.25
+            tic=parser.get_tic(ms_type='MS')[0]
+            tic_df=pd.DataFrame({'time': tic.time,'scan': tic.scans})
+            scans=tic_df[tic_df.time.between(t-interval,t+interval)].scan.tolist()
+            mass_spectrum = parser.get_average_mass_spectrum_by_scanlist(scans)
+            masses=mass_spectrum.to_dataframe()['m/z']
+            mdiff=abs(masses-stdmass)
+            mass=masses[mdiff==mdiff.min()].to_numpy()
+            err=(mass-stdmass)/stdmass*1e6
+            ppmerror[file]=err[0]
         except:
             print('No file found: ' + file)
 
@@ -95,7 +108,7 @@ def std_qc(samplelist,stdmass,std_timerange,filename):
 
     samplelist['qc_area']=pd.Series(area)
     samplelist['QC Retention time']=pd.Series(rt)
-
+    samplelist['m/z error (ppm)']=pd.Series(ppmerror)
     # Flag outliers with peak area greater than 2x standard deviation of the mean 
 
     peak_stdv=samplelist.qc_area.std()
@@ -138,7 +151,7 @@ if __name__ == '__main__':
 
     # Set internal standard m/z and retention time range here:
     stdmass=678.2918 # m/z of cycanocobalamin [M+2H]2+
-    std_timerange=[5,16] # retention time range of peak (min)
+    std_timerange=[2,18] # retention time range of peak (min)
     samplelist2=std_qc(samplelist,stdmass,std_timerange,data_dir+sample_list_name.replace('.csv','_B12QC_EICplot.jpg'))
     samplelist2.to_csv(data_dir+sample_list_name.replace('.csv','_QC.csv'))
     
