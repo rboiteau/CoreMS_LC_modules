@@ -178,7 +178,7 @@ def mz_error_plot(featurelist,filename):
     me_compare2=me_compare[me_compare['mz error flag']<1]
     me_compare2['Assignments']='Error Filtered'
     g=sns.jointplot(x='Calibrated m/z',y='m/z Error (ppm)',data=pd.concat([me_compare,me_compare2]),hue='Assignments')
-    g.set_axis_labels('m/z Error (ppm)', 'Calibrated m/z')
+    g.set_axis_labels('Calibrated m/z','m/z Error (ppm)')
     g.savefig(filename, dpi=300,format='pdf')
 
 def featurelist_clustermap(metabolome,clustermethod,filterstring,savefile):
