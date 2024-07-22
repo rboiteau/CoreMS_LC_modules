@@ -326,19 +326,21 @@ def mz_error_flag(featurelist):
     featurelist['mz error flag']=abs(featurelist['rolling error']-featurelist['m/z Error (ppm)'])/(4*featurelist['m/z Error (ppm) stdev'])
     return(featurelist)
 
-def blank_flag(featurelist):
+def blank_flag(featurelist,blankfiles):
     """
-    This function calculates a 'blank' flag based on the intensity of a specific blank file compared to the maximum intensity in each feature's spectrum.
+    This function calculates a 'blank' column based on the intensity of a specific set of blank file compared to the maximum intensity in each feature's spectrum.
 
     Args:
         featurelist: A pandas DataFrame containing the aligned features with intensity columns prefixed with 'Intensity:'.
-        blankfile: The filename of the blank data file (assumed to be defined elsewhere).
+        blankfile: A list of the filename of the blank data file (assumed to be defined elsewhere).
 
     Returns:
         The modified DataFrame with a new column 'blank' flag indicating potential blank contamination.
     """
+    blankfile_cols = ["Intensity:" + item for item in blankfiles]
     featurelist['Max Intense']=featurelist.filter(regex='Intensity').max(axis=1)
-    featurelist['blank']=featurelist['Intensity:'+blankfile.replace(dfiletype,'')].fillna(0)/featurelist['Max Intense']
+    featurelist['Max Blank']=featurelist[blankfile_cols].max(axis=1)
+    featurelist['blank']=featurelist['Max Blank']/featurelist['Max Intense']
     return(featurelist)
 
 if __name__ == '__main__':
@@ -356,8 +358,8 @@ if __name__ == '__main__':
     global clusteredlist_file
     clusteredlist_file='Fetsh_featurelist.csv'
 
-    global blankfile
-    blankfile='PWB_041423_waterblank2_59.raw'
+    global blankfiles
+    blankfiles=['PWB_041423_waterblank2_59.raw']
 
     global dfiletype
     dfiletype='.raw'
@@ -381,7 +383,7 @@ if __name__ == '__main__':
 
     ### Remove features detected in the blank within 50% of the max intensity. 
 
-    featurelist=blank_flag(featurelist)
+    featurelist=blank_flag(featurelist,blankfiles)
     print("# Features, blank corrected: " + str(len(featurelist[featurelist['blank']<0.5])))
     #featurelist=featurelist[featurelist['blank']<0.5]
 
